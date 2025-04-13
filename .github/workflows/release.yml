@@ -1,0 +1,52 @@
+name: Version Bump and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Git
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+
+      - name: Get current version
+        id: version
+        run: |
+          TAG=$(git describe --tags `git rev-list --tags --max-count=1` || echo "v0.0.0")
+          echo "Latest version: $TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        id: bump
+        run: |
+          OLD_VERSION=${{ steps.version.outputs.tag }}
+          echo "Old Version: $OLD_VERSION"
+          NEW_VERSION=$(echo $OLD_VERSION | awk -F. '{ printf("v%d.%d.%d\n", $1=="v"?substr($1,2):$1, $2, $3+1) }')
+          echo "New Version: $NEW_VERSION"
+          echo "new_tag=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create tag
+        run: |
+          git tag ${{ steps.bump.outputs.new_tag }}
+          git push origin ${{ steps.bump.outputs.new_tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.new_tag }}
+          name: Release ${{ steps.bump.outputs.new_tag }}
+          body: |
+            🔁 Auto-generated release from push to `main`.
+            See CHANGELOG.md for details.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
